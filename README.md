@@ -1,4 +1,4 @@
-# Intelligent Cruise Control System Simulation
+# Speed Control of a Vehicle using Fuzzy Logic
 
 ## Overview
 
