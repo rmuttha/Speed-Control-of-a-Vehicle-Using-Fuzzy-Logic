@@ -1,0 +1,191 @@
+% FLC: Speed control of a vehicle
+% Let two fuzzy inputs (speed difference (SD) and acceleration (A)) and one fuzzy
+% output throttle control (TC) be there.
+% X: Universe of discourse [0,240]
+% Partitions: 
+%     NL: Open left MF (a = 30, b = 60) 
+%     NM: Traingular(a = 30, b = 60, c = 90)
+%     NS: Traingular(a = 60, b = 90, c = 120)
+%     ZE: Traingular(a = 90, b = 120, c = 150)
+%     PS: Traingular(a = 120, b = 150, c = 180)
+%     PM: Traingular(a = 150, b = 180, c = 210)
+%     PL: Open right (a = 180, b = 210) 
+
+% Assuming values for Speed Difference and Acceleration
+Speed = 80;
+Acceleration = 105;
+
+% Printing the values
+disp(['The speed input is: ', num2str(Speed)]);
+disp(['The Acceleration input is: ', num2str(Acceleration)]);
+disp(' ');
+
+% Functions for open left fuzzification  
+function NL = openLeft(x,alpha, beta)
+    if x < alpha
+        NL = 1;
+    elseif alpha < x && x <= beta
+        NL = (beta - x)/(beta - alpha);
+    else
+        NL = 0;
+    end
+end
+
+% Functions for open right fuzzification  
+function PL = openRight(x,alpha, beta)
+    if x < alpha
+        PL = 0;
+    elseif alpha < x && x <= beta
+        PL = (x-alpha)/(beta - alpha);
+    else
+        PL = 0;
+    end
+end
+
+% Function for triangular fuzzification  
+function val = triangular(x,a,b,c)
+    val = max(min((x-a)/(b-a), (c-x)/(c-b)),0);
+end
+
+% Fuzzy Partition: Generating fuzzy sets to represent the underlying data
+function [NL,NM,NS,ZE,PS,PM,PL] = partition(x)
+    NL = 0;  NM = 0; NS = 0; ZE = 0; PS = 0; PM = 0; PL = 0;
+    
+    if x > 0 && x < 60
+        NL = openLeft(x,30,60);
+    end
+    if x > 30 && x < 90
+        NM = triangular(x,30,60,90);
+    end
+    if x > 60 && x < 120
+        NS = triangular(x,60,90,120);
+    end
+    if x > 90 && x < 150
+        ZE = triangular(x,90,120,150);
+    end
+    if x > 120 && x < 180
+        PS = triangular(x,120,150,180);
+    end
+    if x > 150 && x < 210
+        PM = triangular(x,120,150,180);
+    end
+    if x > 180 && x < 240
+        PL = openRight(x,180,210);
+    end
+end
+
+% Getting fuzzy values for all the inputs for all the fuzzy sets
+[NLSD,NMSD,NSSD,ZESD,PSSD,PMSD,PLSD] = partition(Speed);
+[NLAC,NMAC,NSAC,ZEAC,PSAC,PMAC,PLAC] = partition(Acceleration);
+
+% Display the fuzzy values for all fuzzy sets
+outPut = [NLSD,NMSD,NSSD,ZESD,PSSD,PMSD,PLSD;
+          NLAC,NMAC,NSAC,ZEAC,PSAC,PMAC,PLAC];
+disp('The fuzzy values of the crisp inputs');
+disp(['NL','NM','NS','ZE','PS','PM','PLSD']);
+disp(round(outPut,2));
+
+% Rules implementation
+function TC = compare(TC1, TC2)
+    if TC1 > TC2 && TC1 ~= 0 && TC2 ~= 0
+        TC = TC2;
+    else
+        TC = TC1;
+    end
+    
+    if TC1 == 0 && TC2 ~= 0
+        TC = TC2;
+    end
+    
+    if TC2 == 0 && TC1 ~= 0
+        TC = TC1;
+    end
+end
+
+function [PLTC, PMTC, PSTC, NSTC, NLTC] = rule(NLSD,NMSD,NSSD,ZESD,PSSD,PMSD,PLSD,NLAC,NMAC,NSAC,ZEAC,PSAC,PMAC,PLAC)
+    PLTC1 = min(NLSD,ZEAC); 
+    PLTC2 = min(ZESD,NLAC);
+    PLTC = compare(PLTC1, PLTC2);
+    
+    PMTC1 = min(NMSD,ZEAC);
+    PMTC2 = min(ZESD,NMAC);
+    PMTC = compare(PMTC1, PMTC2);
+    
+    PSTC1 = min(NSSD,PSAC);
+    PSTC2 = min(ZESD,NSAC);
+    PSTC = compare(PSTC1, PSTC2);
+    NSTC = min(PSSD,NSAC);
+    NLTC = min(PLSD,ZEAC);
+end
+
+[PLTC, PMTC, PSTC, NSTC, NLTC] = rule(NLSD,NMSD,NSSD,ZESD,PSSD,PMSD,PLSD,NLAC,NMAC,NSAC,ZEAC,PSAC,PMAC,PLAC);
+disp(' ');
+
+% Display the fuzzy values for all rules
+outPutRules = [PLTC, PMTC, PSTC, NSTC, NLTC];
+disp('The fuzzy output: ');
+disp(['PLTC', 'PMTC', 'PSTC', 'NSTC', 'NLTC']);
+disp(round(outPutRules,2));
+
+% De-fuzzyfication
+function [area, c] = areaOR(mu, alpha, beta)
+    xOR = (beta - alpha) * mu + alpha;
+    area = 0.5 * mu * ((240 - alpha) + (240 - xOR));
+    c = (240 - alpha) / 2 + alpha;
+end
+
+function [area, c] = areaOL(mu, alpha, beta)
+    xOL = beta - mu * (beta - alpha);
+    area = 0.5 * mu * (beta + xOL);
+    c = beta / 2;
+end
+
+function area = areaTR(mu, a, b, c)
+    x1 = mu * (b - a) + a;
+    x2 = c - mu * (c - b);
+    d1 = (c - a);
+    d2 = x2 - x1;
+    area = 0.5 * mu * (d1 + d2);
+end
+
+function crispOutputFinal = defuzzyfication(PLTC, PMTC, PSTC, NSTC, NLTC)
+    areaPL = 0; areaPM = 0; areaPS = 0; areaNS = 0; areaNL = 0;
+    cPL = 0; cPM = 0; cPS = 0; cNS = 0; cNL = 0;
+
+    if PLTC ~= 0
+        [areaPL, cPL] = areaOR(PLTC, 180, 210);
+    end
+                
+    if PMTC ~= 0
+        areaPM = areaTR(PMTC, 150, 180, 210);
+        cPM = 180;
+    end
+    
+    if PSTC ~= 0
+        areaPS = areaTR(PSTC, 120, 150, 180);
+        cPS = 150;
+    end
+    
+    if NSTC ~= 0
+        areaNS = areaTR(NSTC, 60, 90, 120);
+        cNS = 90;
+    end
+    
+    if NLTC ~=0
+        [areaNL, cNL] = areaOL(NLTC, 30, 60);
+    end
+    
+    numerator = areaPL * cPL + areaPM * cPM + areaPS * cPS + areaNS * cNS + areaNL * cNL;
+    denominator = areaPL + areaPM + areaPS + areaNS + areaNL;
+    if denominator == 0
+        disp('No rules exist to give the result');
+        crispOutputFinal = 0;
+    else
+        crispOutputFinal = numerator / denominator;
+    end
+end
+
+crispOutputFinal = defuzzyfication(PLTC, PMTC, PSTC, NSTC, NLTC);
+if crispOutputFinal ~= 0
+    disp(['The crisp TC value is: ', num2str(crispOutputFinal)]);
+end
